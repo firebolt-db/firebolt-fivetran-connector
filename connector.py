@@ -239,12 +239,8 @@ def update(configuration: dict, state: dict) -> Any:
                 if last_cursor and iteration_column:
                     query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
                     query += f' ORDER BY "{iteration_column}"'
-                elif last_cursor and has_timestamp_column(
-                    cursor, table_name, configuration["database"]
-                ):
-                    query += f" WHERE _fivetran_synced > '{last_cursor}'"
 
-                cursor.execute(query)
+                cursor.execute_stream(query)
 
                 batch_size = 1000
                 batch_count = 0
@@ -260,7 +256,6 @@ def update(configuration: dict, state: dict) -> Any:
                     for row in rows:
                         record = dict(zip(columns, row))
 
-                        record["_fivetran_synced"] = current_sync_time
                         record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
 
                         if iteration_column and iteration_column in record:
