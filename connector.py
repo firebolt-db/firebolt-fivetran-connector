@@ -1,27 +1,25 @@
-# This is an example for how to work with the fivetran_connector_sdk module.
-"""Add one line description of your connector here.
-For example: This connector demonstrates how to fetch data from XYZ source and upsert it into destination using ABC library.
+# This is a Fivetran connector for Firebolt database.
+"""Firebolt Fivetran Connector.
+This connector demonstrates how to fetch data from Firebolt database and upsert it into destination using Firebolt Python SDK.
 """
 # See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
 # and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
 
 
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from firebolt.client.auth import ClientCredentials
+from firebolt.db import connect
+
+# For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
+# For enabling Logs in your connector code
 # Import required classes from fivetran_connector_sdk
 # For supporting Connector operations like Update() and Schema()
 from fivetran_connector_sdk import Connector
-
-# For enabling Logs in your connector code
 from fivetran_connector_sdk import Logging as log
-
-# For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
 from fivetran_connector_sdk import Operations as op
-
-
-""" Add your source-specific imports here
-Example: import pandas, boto3, etc.
-Add comment for each import to explain its purpose for users to follow."""
-import json
-
 
 """
 GUIDELINES TO FOLLOW WHILE WRITING AN EXAMPLE CONNECTOR:
@@ -44,7 +42,7 @@ GUIDELINES TO FOLLOW WHILE WRITING AN EXAMPLE CONNECTOR:
 """
 
 
-def validate_configuration(configuration: dict):
+def validate_configuration(configuration: dict) -> None:
     """
     Validate the configuration dictionary to ensure it contains all required parameters.
     This function is called at the start of the update method to ensure that the connector has all necessary configuration values.
@@ -54,34 +52,130 @@ def validate_configuration(configuration: dict):
         ValueError: if any required configuration parameter is missing.
     """
 
-    # Validate required configuration parameters
-    required_configs = ["param1", "param2", "param3"]
+    required_configs = [
+        "client_id",
+        "client_secret",
+        "account_name",
+        "database",
+        "engine_name",
+    ]
     for key in required_configs:
         if key not in configuration:
             raise ValueError(f"Missing required configuration value: {key}")
+        if not configuration[key] or configuration[key].strip() == "":
+            raise ValueError(f"Configuration value '{key}' cannot be empty")
 
 
-def schema(configuration: dict):
+def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
     """
-    Define the schema function which lets you configure the schema your connector delivers.
+    Map Firebolt data types to Fivetran data types.
+    Args:
+        firebolt_type: Firebolt column data type
+    Returns:
+        str: Corresponding Fivetran data type
+    """
+    type_mapping = {
+        "INT": "INTEGER",
+        "INTEGER": "INTEGER",
+        "BIGINT": "LONG",
+        "LONG": "LONG",
+        "FLOAT": "DOUBLE",
+        "DOUBLE": "DOUBLE",
+        "DECIMAL": "DECIMAL",
+        "NUMERIC": "DECIMAL",
+        "TEXT": "STRING",
+        "STRING": "STRING",
+        "VARCHAR": "STRING",
+        "BOOLEAN": "BOOLEAN",
+        "DATE": "DATE",
+        "TIMESTAMP": "TIMESTAMP_NTZ",
+        "TIMESTAMPTZ": "TIMESTAMP_TZ",
+    }
+
+    upper_type = firebolt_type.upper()
+    if upper_type.startswith("ARRAY"):
+        return "JSON"
+
+    return type_mapping.get(upper_type, "STRING")
+
+
+def has_timestamp_column(cursor: Any, table_name: str, database: str) -> bool:
+    """
+    Check if table has a timestamp column for incremental sync.
+    Args:
+        cursor: Database cursor
+        table_name: Name of the table
+        database: Database name
+    Returns:
+        bool: True if table has timestamp columns
+    """
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM information_schema.columns 
+        WHERE table_schema = ? AND table_name = ? 
+        AND data_type IN ('TIMESTAMP', 'TIMESTAMPTZ', 'DATE')
+    """,
+        [database, table_name],
+    )
+
+    result = cursor.fetchone()
+    return result[0] > 0 if result else False
+
+
+def schema(configuration: dict) -> List[Dict[str, Any]]:
+    """
+    Define the schema function which discovers tables from Firebolt database.
     See the technical reference documentation for more details on the schema function:
     https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
 
-    return [
-        {
-            "table": "table_name",  # Name of the table in the destination, required.
-            "primary_key": ["id"],  # Primary key column(s) for the table, optional.
-            "columns": {  # Definition of columns and their types, optional.
-                "id": "STRING",  # Contains a dictionary of column names and data types
-            },  # For any columns whose names are not provided here, e.g. id, their data types will be inferred
-        },
-    ]
+    validate_configuration(configuration)
+
+    auth = ClientCredentials(
+        client_id=configuration["client_id"],
+        client_secret=configuration["client_secret"],
+    )
+
+    with connect(
+        auth=auth,
+        account_name=configuration["account_name"],
+        database=configuration["database"],
+        engine_name=configuration["engine_name"],
+        api_endpoint=configuration.get("api_endpoint", "https://api.firebolt.io"),
+    ) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT table_name, column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_schema = ?
+            ORDER BY table_name, ordinal_position
+        """,
+            [configuration["database"]],
+        )
+
+        results = cursor.fetchall()
+
+        tables = {}
+        for row in results:
+            table_name, column_name, data_type, is_nullable = row
+            if table_name not in tables:
+                tables[table_name] = {
+                    "table": table_name,
+                    "primary_key": ["_fivetran_id"],
+                    "columns": {},
+                }
+
+            fivetran_type = map_firebolt_type_to_fivetran(data_type)
+            tables[table_name]["columns"][column_name] = fivetran_type
+
+        return list(tables.values())
 
 
-def update(configuration: dict, state: dict):
+def update(configuration: dict, state: dict) -> Any:
     """
      Define the update function, which is a required function, and is called by Fivetran during each sync.
     See the technical reference documentation for more details on the update function
@@ -92,39 +186,94 @@ def update(configuration: dict, state: dict):
         The state dictionary is empty for the first sync or for any full re-sync
     """
 
-    log.warning("Example: <type_of_example> : <name_of_the_example>")
+    log.info("Starting Firebolt data sync")
 
-    # Validate the configuration to ensure it contains all required values.
     validate_configuration(configuration=configuration)
 
-    # Extract configuration parameters as required
-    param1 = configuration.get("param1")
+    auth = ClientCredentials(
+        client_id=configuration["client_id"],
+        client_secret=configuration["client_secret"],
+    )
 
-    # Get the state variable for the sync, if needed
     last_sync_time = state.get("last_sync_time")
+    table_cursors = state.get("table_cursors", {})
 
     try:
-        data = get_data()
-        for record in data:
+        with connect(
+            auth=auth,
+            account_name=configuration["account_name"],
+            database=configuration["database"],
+            engine_name=configuration["engine_name"],
+            api_endpoint=configuration.get("api_endpoint", "https://api.firebolt.io"),
+        ) as connection:
+            cursor = connection.cursor()
 
-            # The yield statement returns a generator object.
-            # This generator will yield an upsert operation to the Fivetran connector.
-            # The op.upsert method is called with two arguments:
-            # - The first argument is the name of the table to upsert the data into.
-            # - The second argument is a dictionary containing the data to be upserted,
-            yield op.upsert(table="table_name", data=record)
+            cursor.execute(
+                """
+                SELECT DISTINCT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = ?
+                AND table_type = 'BASE TABLE'
+            """,
+                [configuration["database"]],
+            )
 
-        # Update state with the current sync time for the next run
-        new_state = {"last_sync_time": new_sync_time}
+            tables = [row[0] for row in cursor.fetchall()]
+            log.info(f"Found {len(tables)} tables to sync: {tables}")
 
-        # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
-        # from the correct position in case of next sync or interruptions.
-        # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
-        yield op.checkpoint(new_state)
+            current_sync_time = datetime.utcnow().isoformat()
+            new_table_cursors = {}
+
+            for table_name in tables:
+                log.info(f"Syncing table: {table_name}")
+
+                last_cursor = table_cursors.get(table_name)
+
+                query = f'SELECT * FROM "{table_name}"'
+                if last_cursor and has_timestamp_column(
+                    cursor, table_name, configuration["database"]
+                ):
+                    query += f" WHERE _fivetran_synced > '{last_cursor}'"
+
+                cursor.execute(query)
+
+                batch_size = 1000
+                batch_count = 0
+
+                while True:
+                    rows = cursor.fetchmany(batch_size)
+                    if not rows:
+                        break
+
+                    columns = [desc.name for desc in cursor.description]
+
+                    for row in rows:
+                        record = dict(zip(columns, row))
+
+                        record["_fivetran_synced"] = current_sync_time
+                        record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
+
+                        yield op.upsert(table=table_name, data=record)
+
+                    batch_count += 1
+                    if batch_count % 10 == 0:
+                        log.info(
+                            f"Processed {batch_count * batch_size} records from {table_name}"
+                        )
+
+                new_table_cursors[table_name] = current_sync_time
+                log.info(f"Completed sync for table: {table_name}")
+
+            new_state = {
+                "last_sync_time": current_sync_time,
+                "table_cursors": new_table_cursors,
+            }
+
+            yield op.checkpoint(new_state)
+            log.info("Firebolt sync completed successfully")
 
     except Exception as e:
-        # In case of an exception, raise a runtime error
+        log.severe(f"Failed to sync data from Firebolt: {str(e)}")
         raise RuntimeError(f"Failed to sync data: {str(e)}")
 
 

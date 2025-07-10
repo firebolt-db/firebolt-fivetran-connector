@@ -1,6 +1,8 @@
 {
-  "param1": "<YOUR_VALUE_1>",
-  "param2": "<YOUR_VALUE_2>",
-  "param3": "<YOUR_VALUE_3>",
-  "param4": "<YOUR_VALUE_4>"
+  "client_id": "placeholder_for_runtime",
+  "client_secret": "placeholder_for_runtime", 
+  "account_name": "automation",
+  "database": "petro_test",
+  "engine_name": "petro_test",
+  "api_endpoint": "https://api.staging.firebolt.io"
 }
