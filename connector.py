@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from firebolt.client.auth import ClientCredentials
+from firebolt.client.constants import DEFAULT_API_URL
 from firebolt.db import connect
 
 # For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
@@ -143,7 +144,7 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
         account_name=configuration["account_name"],
         database=configuration["database"],
         engine_name=configuration["engine_name"],
-        api_endpoint=configuration.get("api_endpoint", "https://api.firebolt.io"),
+        api_endpoint=configuration.get("api_endpoint", f"https://{DEFAULT_API_URL}"),
     ) as connection:
         cursor = connection.cursor()
 
@@ -204,7 +205,9 @@ def update(configuration: dict, state: dict) -> Any:
             account_name=configuration["account_name"],
             database=configuration["database"],
             engine_name=configuration["engine_name"],
-            api_endpoint=configuration.get("api_endpoint", "https://api.firebolt.io"),
+            api_endpoint=configuration.get(
+                "api_endpoint", f"https://{DEFAULT_API_URL}"
+            ),
         ) as connection:
             cursor = connection.cursor()
 

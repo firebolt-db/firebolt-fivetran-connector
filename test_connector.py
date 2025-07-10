@@ -9,6 +9,10 @@ def test_connector() -> bool:
 
     client_id = os.environ.get("id")
     client_secret = os.environ.get("secret")
+    account_name = os.environ.get("account_name", "automation")
+    database = os.environ.get("database", "petro_test")
+    engine_name = os.environ.get("engine_name", "petro_test")
+    api_endpoint = os.environ.get("api_endpoint", "https://api.staging.firebolt.io")
 
     if not client_id or not client_secret:
         print("ERROR: Missing credentials in environment variables 'id' and 'secret'")
@@ -17,10 +21,10 @@ def test_connector() -> bool:
     config = {
         "client_id": client_id,
         "client_secret": client_secret,
-        "account_name": "automation",
-        "database": "petro_test",
-        "engine_name": "petro_test",
-        "api_endpoint": "https://api.staging.firebolt.io",
+        "account_name": account_name,
+        "database": database,
+        "engine_name": engine_name,
+        "api_endpoint": api_endpoint,
     }
 
     try:
