@@ -239,49 +239,71 @@ def update(configuration: dict, state: dict) -> Any:
             for table_name in tables:
                 log.info(f"Syncing table: {table_name}")
 
-                iteration_column = configuration.get("iteration_column")
-                last_cursor = table_cursors.get(table_name)
+                try:
+                    iteration_column = configuration.get("iteration_column")
+                    last_cursor = table_cursors.get(table_name)
 
-                query = f'SELECT * FROM "{table_name}"'
-                if last_cursor and iteration_column:
-                    query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
-                    query += f' ORDER BY "{iteration_column}"'
+                    query = f'SELECT * FROM "{table_name}"'
+                    if last_cursor and iteration_column:
+                        query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
+                        query += f' ORDER BY "{iteration_column}"'
 
-                cursor.execute_stream(query)
+                    log.info(f"Executing query: {query}")
+                    cursor.execute_stream(query)
 
-                batch_size = 1000
-                batch_count = 0
-                last_iteration_value = None
+                    batch_size = 1000
+                    batch_count = 0
+                    last_iteration_value = None
+                    total_rows = 0
 
-                while True:
-                    rows = cursor.fetchmany(batch_size)
-                    if not rows:
-                        break
+                    while True:
+                        rows = cursor.fetchmany(batch_size)
+                        if not rows:
+                            break
 
-                    columns = [desc.name for desc in cursor.description]
-
-                    for row in rows:
-                        record = dict(zip(columns, row))
-
-                        record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
-
-                        if iteration_column and iteration_column in record:
-                            last_iteration_value = record[iteration_column]
-
-                        yield op.upsert(table=table_name, data=record)
-
-                    batch_count += 1
-                    if batch_count % 10 == 0:
+                        total_rows += len(rows)
                         log.info(
-                            f"Processed {batch_count * batch_size} records from {table_name}"
+                            f"Fetched {len(rows)} rows from {table_name}, total so far: {total_rows}"
                         )
 
-                if iteration_column and last_iteration_value is not None:
-                    new_table_cursors[table_name] = str(last_iteration_value)
-                else:
-                    new_table_cursors[table_name] = current_sync_time
+                        columns = [desc.name for desc in cursor.description]
 
-                log.info(f"Completed sync for table: {table_name}")
+                        for row in rows:
+                            record = dict(zip(columns, row))
+
+                            record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
+
+                            for key, value in record.items():
+                                if isinstance(value, list):
+                                    record[key] = json.dumps(value)
+
+                            if iteration_column and iteration_column in record:
+                                last_iteration_value = record[iteration_column]
+
+                            yield op.upsert(table=table_name, data=record)
+
+                        batch_count += 1
+                        if batch_count % 10 == 0:
+                            log.info(
+                                f"Processed {batch_count * batch_size} records from {table_name}"
+                            )
+
+                    if iteration_column and last_iteration_value is not None:
+                        new_table_cursors[table_name] = str(last_iteration_value)
+                    else:
+                        new_table_cursors[table_name] = current_sync_time
+
+                    log.info(f"Completed sync for table: {table_name}")
+
+                except Exception as table_error:
+                    if "does not exist or not authorized" in str(table_error):
+                        log.warning(f"Skipping table {table_name}: {str(table_error)}")
+                        continue
+                    else:
+                        log.severe(
+                            f"Failed to sync table {table_name}: {str(table_error)}"
+                        )
+                        raise
 
             new_state = {
                 "last_sync_time": current_sync_time,

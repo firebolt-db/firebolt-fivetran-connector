@@ -158,78 +158,122 @@ class TestFireboltConnectorIntegration:
     def test_update_function_with_test_data(
         self, firebolt_config: Dict[str, Any], test_table_setup: str
     ) -> None:
-        """Test update function with known test data by directly querying the test table."""
-        from firebolt.client.auth import ClientCredentials
-        from firebolt.db import connect
+        """Test update function emits correct operations for test table data."""
+        state: Dict[str, Any] = {}
 
-        from connector import op
+        update_generator = update(firebolt_config, state)
 
-        auth = ClientCredentials(
-            client_id=firebolt_config["client_id"],
-            client_secret=firebolt_config["client_secret"],
-        )
+        operations = []
+        for operation in update_generator:
+            operations.append(operation)
+            if len(operations) > 100:
+                break
 
-        with connect(
-            auth=auth,
-            account_name=firebolt_config["account_name"],
-            database=firebolt_config["database"],
-            engine_name=firebolt_config["engine_name"],
-            api_endpoint=firebolt_config["api_endpoint"],
-        ) as connection:
-            cursor = connection.cursor()
+        upsert_ops = []
+        for op in operations:
+            if isinstance(op, list):
+                if len(op) > 0:
+                    update_response = op[0]
+                    if hasattr(update_response, "record") and update_response.HasField(
+                        "record"
+                    ):
+                        record = update_response.record
+                        if record.table_name == test_table_setup:
+                            upsert_ops.append(record)
 
-            query = f'SELECT * FROM "{test_table_setup}"'
-            cursor.execute_stream(query)
+        assert (
+            len(upsert_ops) == 3
+        ), f"Should have 3 upsert operations for test table, got {len(upsert_ops)}"
 
-            rows = cursor.fetchall()
-            columns = [desc.name for desc in cursor.description]
+        test_records = []
+        for record in upsert_ops:
+            data = {}
+            for key in record.data:
+                field_value = record.data[key]
+                if field_value.HasField("string"):
+                    data[key] = field_value.string
+                elif field_value.HasField("long"):
+                    data[key] = field_value.long
+                elif field_value.HasField("double"):
+                    data[key] = field_value.double
+                elif field_value.HasField("boolean"):
+                    data[key] = field_value.boolean
+            test_records.append(data)
 
-            assert len(rows) == 3, f"Should have 3 rows in test table, got {len(rows)}"
+        assert len(test_records) == 3, "Should have 3 test records"
 
-            records = [dict(zip(columns, row)) for row in rows]
-            names = [record["name"] for record in records]
+        names = [record["name"] for record in test_records]
+        assert "Product A" in names, "Should contain Product A"
+        assert "Product B" in names, "Should contain Product B"
+        assert "Product C" in names, "Should contain Product C"
 
-            assert "Product A" in names, "Should contain Product A"
-            assert "Product B" in names, "Should contain Product B"
-            assert "Product C" in names, "Should contain Product C"
+        for record in test_records:
+            assert "id" in record, "Record should have id field"
+            assert "name" in record, "Record should have name field"
+            assert "updated_at" in record, "Record should have updated_at field"
 
     def test_incremental_sync_with_iteration_column(
         self, firebolt_config: Dict[str, Any], test_table_setup: str
     ) -> None:
-        """Test incremental sync using iteration column with test data."""
-        from firebolt.client.auth import ClientCredentials
-        from firebolt.db import connect
+        """Test incremental sync using iteration column emits filtered operations."""
+        config_with_iteration = firebolt_config.copy()
+        config_with_iteration["iteration_column"] = "updated_at"
 
-        auth = ClientCredentials(
-            client_id=firebolt_config["client_id"],
-            client_secret=firebolt_config["client_secret"],
-        )
+        state = {
+            "last_sync_time": "2023-01-01T00:00:00",
+            "table_cursors": {test_table_setup: "2023-01-01 10:30:00"},
+        }
 
-        with connect(
-            auth=auth,
-            account_name=firebolt_config["account_name"],
-            database=firebolt_config["database"],
-            engine_name=firebolt_config["engine_name"],
-            api_endpoint=firebolt_config["api_endpoint"],
-        ) as connection:
-            cursor = connection.cursor()
+        update_generator = update(config_with_iteration, state)
 
-            query = f'SELECT * FROM "{test_table_setup}" WHERE "updated_at" > \'2023-01-01 10:30:00\' ORDER BY "updated_at"'
-            cursor.execute_stream(query)
+        operations = []
+        for operation in update_generator:
+            operations.append(operation)
+            if len(operations) > 100:
+                break
 
-            rows = cursor.fetchall()
-            columns = [desc.name for desc in cursor.description]
+        upsert_ops = []
+        for op in operations:
+            if isinstance(op, list):
+                if len(op) > 0:
+                    update_response = op[0]
+                    if hasattr(update_response, "record") and update_response.HasField(
+                        "record"
+                    ):
+                        record = update_response.record
+                        if record.table_name == test_table_setup:
+                            upsert_ops.append(record)
 
-            assert len(rows) == 2, f"Should have 2 rows after cursor, got {len(rows)}"
+        assert (
+            len(upsert_ops) == 2
+        ), f"Should have 2 upsert operations after cursor, got {len(upsert_ops)}"
 
-            records = [dict(zip(columns, row)) for row in rows]
-            names = [record["name"] for record in records]
+        test_records = []
+        for record in upsert_ops:
+            data = {}
+            for key in record.data:
+                field_value = record.data[key]
+                if field_value.HasField("string"):
+                    data[key] = field_value.string
+                elif field_value.HasField("long"):
+                    data[key] = field_value.long
+                elif field_value.HasField("double"):
+                    data[key] = field_value.double
+                elif field_value.HasField("boolean"):
+                    data[key] = field_value.boolean
+            test_records.append(data)
 
-            assert "Product B" in names, "Should contain Product B"
-            assert "Product C" in names, "Should contain Product C"
-            assert (
-                "Product A" not in names
-            ), "Should not contain Product A (filtered by cursor)"
+        names = [record["name"] for record in test_records]
+
+        assert "Product B" in names, "Should contain Product B"
+        assert "Product C" in names, "Should contain Product C"
+        assert (
+            "Product A" not in names
+        ), "Should not contain Product A (filtered by cursor)"
+
+        for record in test_records:
+            updated_at = record.get("updated_at")
+            assert updated_at is not None, "Record should have updated_at field"
 
     def test_configuration_with_custom_iteration_column(
         self, firebolt_config: Dict[str, Any]
