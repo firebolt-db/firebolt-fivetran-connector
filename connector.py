@@ -96,6 +96,12 @@ def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
     }
 
     upper_type = firebolt_type.upper()
+
+    if "(" in upper_type:
+        base_type = upper_type.split("(")[0]
+        if base_type in type_mapping:
+            return type_mapping[base_type]
+
     if upper_type.startswith("ARRAY"):
         return "JSON"
 
@@ -154,10 +160,9 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
             """
             SELECT table_name, column_name, data_type, is_nullable
             FROM information_schema.columns 
-            WHERE table_schema = ?
+            WHERE table_schema = 'public'
             ORDER BY table_name, ordinal_position
         """,
-            [configuration["database"]],
         )
 
         results = cursor.fetchall()
@@ -189,6 +194,9 @@ def update(configuration: dict, state: dict) -> Any:
         The state dictionary is empty for the first sync or for any full re-sync
     """
 
+    if not hasattr(log, "LOG_LEVEL") or log.LOG_LEVEL is None:
+        log.LOG_LEVEL = log.Level.INFO
+
     log.info("Starting Firebolt data sync")
 
     validate_configuration(configuration=configuration)
@@ -217,10 +225,9 @@ def update(configuration: dict, state: dict) -> Any:
                 """
                 SELECT DISTINCT table_name 
                 FROM information_schema.tables 
-                WHERE table_schema = ?
+                WHERE table_schema = 'public'
                 AND table_type = 'BASE TABLE'
             """,
-                [configuration["database"]],
             )
 
             tables = [row[0] for row in cursor.fetchall()]
