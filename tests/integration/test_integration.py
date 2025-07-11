@@ -48,12 +48,10 @@ def firebolt_config() -> Dict[str, Any]:
     return {
         "client_id": client_id,
         "client_secret": client_secret,
-        "account_name": os.environ.get("account_name", "automation"),
-        "database": os.environ.get("database", "petro_test_fivetran"),
-        "engine_name": os.environ.get("engine_name", "petro_test"),
-        "api_endpoint": os.environ.get(
-            "api_endpoint", "https://api.staging.firebolt.io"
-        ),
+        "account_name": os.environ.get("account_name"),
+        "database": os.environ.get("database"),
+        "engine_name": os.environ.get("engine_name"),
+        "api_endpoint": os.environ.get("api_endpoint"),
     }
 
 
