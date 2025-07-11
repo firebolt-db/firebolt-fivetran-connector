@@ -1,3 +1,5 @@
+from typing import Dict, Union
+
 import pytest
 
 from connector import map_firebolt_type_to_fivetran, validate_configuration
@@ -101,6 +103,24 @@ class TestValidateConfiguration:
 class TestMapFireboltTypeToFivetran:
     """Test cases for map_firebolt_type_to_fivetran function."""
 
+    @pytest.fixture
+    def expected_decimal(self) -> Dict[str, Union[str, int]]:
+        """Helper function to return expected decimal type."""
+        return {
+            "type": "DECIMAL",
+            "precision": 10,
+            "scale": 2,
+        }
+
+    @pytest.fixture
+    def expected_numeric(self) -> Dict[str, Union[str, int]]:
+        """Helper function to return expected numeric type."""
+        return {
+            "type": "DECIMAL",
+            "precision": 38,
+            "scale": 9,
+        }
+
     def test_integer_types(self) -> None:
         """Test mapping of integer types."""
         assert map_firebolt_type_to_fivetran("INT") == "INT"
@@ -131,20 +151,20 @@ class TestMapFireboltTypeToFivetran:
     def test_double_types(self) -> None:
         """Test mapping of double precision types."""
         assert map_firebolt_type_to_fivetran("DOUBLE") == "DOUBLE"
-        assert map_firebolt_type_to_fivetran("FLOAT8") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("FLOAT8") == "FLOAT"
         assert map_firebolt_type_to_fivetran("DOUBLE PRECISION") == "DOUBLE"
         assert map_firebolt_type_to_fivetran("double") == "DOUBLE"
-        assert map_firebolt_type_to_fivetran("float8") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("float8") == "FLOAT"
         assert map_firebolt_type_to_fivetran("double precision") == "DOUBLE"
 
-    def test_decimal_types(self) -> None:
+    def test_decimal_types(self, expected_decimal, expected_numeric) -> None:
         """Test mapping of decimal/numeric types."""
         assert map_firebolt_type_to_fivetran("DECIMAL") == "DECIMAL"
         assert map_firebolt_type_to_fivetran("NUMERIC") == "DECIMAL"
         assert map_firebolt_type_to_fivetran("decimal") == "DECIMAL"
         assert map_firebolt_type_to_fivetran("numeric") == "DECIMAL"
-        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == "DECIMAL"
-        assert map_firebolt_type_to_fivetran("NUMERIC(38,9)") == "DECIMAL"
+        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == expected_decimal
+        assert map_firebolt_type_to_fivetran("NUMERIC(38,9)") == expected_numeric
 
     def test_string_types(self) -> None:
         """Test mapping of string types."""
@@ -190,11 +210,11 @@ class TestMapFireboltTypeToFivetran:
         assert map_firebolt_type_to_fivetran("STRUCT(a INT, b STRING)") == "JSON"
         assert map_firebolt_type_to_fivetran("struct(a int, b string)") == "JSON"
 
-    def test_parameterized_types(self) -> None:
+    def test_parameterized_types(self, expected_decimal) -> None:
         """Test mapping of parameterized types."""
         assert map_firebolt_type_to_fivetran("FLOAT(25)") == "FLOAT"
         assert map_firebolt_type_to_fivetran("FLOAT(53)") == "FLOAT"
-        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == "DECIMAL"
+        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == expected_decimal
 
     def test_unknown_types(self) -> None:
         """Test mapping of unknown types defaults to STRING."""

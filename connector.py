@@ -11,7 +11,7 @@ upsert it into destination using Firebolt Python SDK.
 
 import json
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from firebolt.client.auth.client_credentials import ClientCredentials
 from firebolt.client.constants import DEFAULT_API_URL
@@ -88,7 +88,7 @@ def validate_configuration(configuration: dict) -> None:
             raise ValueError(f"Configuration value '{key}' cannot be empty")
 
 
-def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
+def map_firebolt_type_to_fivetran(firebolt_type: str) -> Union[str, Dict[str, Any]]:
     """
     Map Firebolt data types to Fivetran data types.
     Args:
@@ -134,9 +134,16 @@ def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
 
     upper_type = firebolt_type.upper()
 
-    # Handle parameterized types like DECIMAL(10,2) or FLOAT(25)
+    # Handle parameterized types like DECIMAL(10,2)
     if "(" in upper_type:
         base_type = upper_type.split("(")[0].strip()
+        if base_type == "DECIMAL" or base_type == "NUMERIC":
+            precision, scale = upper_type.split("(")[1].rstrip(")").split(",")
+            return {
+                "type": "DECIMAL",
+                "precision": int(precision),
+                "scale": int(scale),
+            }
         if base_type in type_mapping:
             return type_mapping[base_type]
 
