@@ -78,21 +78,21 @@ def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
         str: Corresponding Fivetran data type
     """
     type_mapping = {
-        "INT": "INTEGER",
-        "INTEGER": "INTEGER",
+        "INT": "INT",
+        "INTEGER": "INT",
         "BIGINT": "LONG",
         "LONG": "LONG",
-        "FLOAT": "DOUBLE",
+        "FLOAT": "FLOAT",
         "DOUBLE": "DOUBLE",
         "DECIMAL": "DECIMAL",
         "NUMERIC": "DECIMAL",
         "TEXT": "STRING",
         "STRING": "STRING",
-        "VARCHAR": "STRING",
         "BOOLEAN": "BOOLEAN",
-        "DATE": "DATE",
-        "TIMESTAMP": "TIMESTAMP_NTZ",
-        "TIMESTAMPTZ": "TIMESTAMP_TZ",
+        "DATE": "NAIVE_DATE",
+        "BYTEA": "BINARY",
+        "TIMESTAMP": "NAIVE_DATETIME",
+        "TIMESTAMPTZ": "NAIVE_DATETIME",
     }
 
     upper_type = firebolt_type.upper()
