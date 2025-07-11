@@ -1,6 +1,12 @@
 name: Pull request formatting
 
 on:
+  workflow_call:
+    inputs:
+      branch:
+        required: false
+        type: string
+        description: 'Branch to run on'
   pull_request:
     branches: [ main ]
     types: [opened, synchronize, edited]

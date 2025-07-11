@@ -77,20 +77,20 @@ def test_table_setup(firebolt_config: Dict[str, Any]) -> Generator[str, None, No
 
         create_table_sql = f"""
         CREATE DIMENSION TABLE "{table_name}" (
-            id INT,                           /* Integer type */
-            bigint_col BIGINT,                /* Bigint type */
-            name STRING,                      /* String type */
-            numeric_col NUMERIC(10,2),        /* Numeric/Decimal type */
-            float_col FLOAT,                  /* Float type */
-            double_col DOUBLE PRECISION,      /* Double precision type */
-            real_col REAL,                    /* Real type */
-            created_date DATE,                /* Date type */
-            updated_at TIMESTAMP,             /* Timestamp type */
-            updated_at_tz TIMESTAMPTZ,        /* Timestamptz type */
-            is_active BOOLEAN,                /* Boolean type */
-            binary_data BYTEA,                /* Binary type */
-            tags ARRAY(STRING),               /* Array type */
-            location GEOGRAPHY               /* Geography type */
+            id INT,
+            bigint_col BIGINT,
+            name STRING,
+            numeric_col NUMERIC(10,2),
+            float_col FLOAT,
+            double_col DOUBLE PRECISION,
+            real_col REAL,
+            created_date DATE,
+            updated_at TIMESTAMP,
+            updated_at_tz TIMESTAMPTZ,
+            is_active BOOLEAN,
+            binary_data BYTEA,
+            tags ARRAY(STRING),
+            location GEOGRAPHY
         )
         """
         cursor.execute(create_table_sql)
