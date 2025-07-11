@@ -171,6 +171,8 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
 
     validate_configuration(configuration)
 
+    log.info("Discovering Firebolt schema")
+
     auth = ClientCredentials(
         client_id=configuration["client_id"],
         client_secret=configuration["client_secret"],
@@ -208,6 +210,8 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
 
             fivetran_type = map_firebolt_type_to_fivetran(data_type)
             tables[table_name]["columns"][column_name] = fivetran_type
+
+        log.info(f"Discovered {len(tables)} tables")
 
         return list(tables.values())
 
@@ -258,7 +262,7 @@ def update(configuration: dict, state: dict) -> Any:
             )
 
             tables = [row[0] for row in cursor.fetchall()]
-            log.info(f"Found {len(tables)} tables to sync: {tables}")
+            log.info(f"Syncing {len(tables)} tables: {tables}")
 
             current_sync_time = datetime.now(timezone.utc).isoformat()
             new_table_cursors = {}
@@ -284,8 +288,6 @@ def update(configuration: dict, state: dict) -> Any:
                     for row in cursor:
                         columns = [desc.name for desc in cursor.description]
                         record = dict(zip(columns, row))
-
-                        # record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
 
                         for key, value in record.items():
                             if isinstance(value, list):

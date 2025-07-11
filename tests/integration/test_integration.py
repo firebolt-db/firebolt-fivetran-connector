@@ -274,8 +274,7 @@ class TestFireboltConnectorIntegration:
             "is_active",
             "binary_data",
             "tags",
-            "location",
-            # "_fivetran_id"
+            "location"
         ]
         for record in test_records:
             assert set(record.keys()) == set(
