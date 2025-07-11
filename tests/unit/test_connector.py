@@ -105,10 +105,10 @@ class TestMapFireboltTypeToFivetran:
 
     def test_integer_types(self) -> None:
         """Test mapping of integer types."""
-        assert map_firebolt_type_to_fivetran("INT") == "INTEGER"
-        assert map_firebolt_type_to_fivetran("INTEGER") == "INTEGER"
-        assert map_firebolt_type_to_fivetran("int") == "INTEGER"
-        assert map_firebolt_type_to_fivetran("integer") == "INTEGER"
+        assert map_firebolt_type_to_fivetran("INT") == "INT"
+        assert map_firebolt_type_to_fivetran("INTEGER") == "INT"
+        assert map_firebolt_type_to_fivetran("int") == "INT"
+        assert map_firebolt_type_to_fivetran("integer") == "INT"
 
     def test_long_types(self) -> None:
         """Test mapping of long/bigint types."""
@@ -119,9 +119,9 @@ class TestMapFireboltTypeToFivetran:
 
     def test_float_types(self) -> None:
         """Test mapping of float/double types."""
-        assert map_firebolt_type_to_fivetran("FLOAT") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("FLOAT") == "FLOAT"
         assert map_firebolt_type_to_fivetran("DOUBLE") == "DOUBLE"
-        assert map_firebolt_type_to_fivetran("float") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("float") == "FLOAT"
         assert map_firebolt_type_to_fivetran("double") == "DOUBLE"
 
     def test_decimal_types(self) -> None:
@@ -147,12 +147,12 @@ class TestMapFireboltTypeToFivetran:
 
     def test_date_types(self) -> None:
         """Test mapping of date/timestamp types."""
-        assert map_firebolt_type_to_fivetran("DATE") == "DATE"
-        assert map_firebolt_type_to_fivetran("TIMESTAMP") == "TIMESTAMP_NTZ"
-        assert map_firebolt_type_to_fivetran("TIMESTAMPTZ") == "TIMESTAMP_TZ"
-        assert map_firebolt_type_to_fivetran("date") == "DATE"
-        assert map_firebolt_type_to_fivetran("timestamp") == "TIMESTAMP_NTZ"
-        assert map_firebolt_type_to_fivetran("timestamptz") == "TIMESTAMP_TZ"
+        assert map_firebolt_type_to_fivetran("DATE") == "NAIVE_DATE"
+        assert map_firebolt_type_to_fivetran("TIMESTAMP") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("TIMESTAMPTZ") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("date") == "NAIVE_DATE"
+        assert map_firebolt_type_to_fivetran("timestamp") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("timestamptz") == "NAIVE_DATETIME"
 
     def test_array_types(self) -> None:
         """Test mapping of array types."""
@@ -169,7 +169,7 @@ class TestMapFireboltTypeToFivetran:
 
     def test_case_insensitive(self) -> None:
         """Test that type mapping is case insensitive."""
-        assert map_firebolt_type_to_fivetran("Int") == "INTEGER"
+        assert map_firebolt_type_to_fivetran("Int") == "INT"
         assert map_firebolt_type_to_fivetran("BiGiNt") == "LONG"
         assert map_firebolt_type_to_fivetran("VarChar") == "STRING"
-        assert map_firebolt_type_to_fivetran("TimeStamp") == "TIMESTAMP_NTZ"
+        assert map_firebolt_type_to_fivetran("TimeStamp") == "NAIVE_DATETIME"
