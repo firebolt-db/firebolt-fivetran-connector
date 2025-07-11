@@ -1,0 +1,13 @@
+name: Pull request code checks
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  code-checkers:
+    uses: ./.github/workflows/code-check.yml
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+  pr-formatting:
+    uses: ./.github/workflows/check-pr-formatting.yml
