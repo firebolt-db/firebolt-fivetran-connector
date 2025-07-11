@@ -1,1 +1,2 @@
-library-required==version
+firebolt_sdk==1.13.0
+pytest==8.4.1

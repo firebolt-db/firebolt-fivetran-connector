@@ -1,6 +1,8 @@
 {
-  "param1": "<YOUR_VALUE_1>",
-  "param2": "<YOUR_VALUE_2>",
-  "param3": "<YOUR_VALUE_3>",
-  "param4": "<YOUR_VALUE_4>"
+  "client_id": "CLIENT_ID",
+  "client_secret": "CLIENT_SECRET", 
+  "account_name": "ACCOUNT_NAME",
+  "database": "DATABASE",
+  "engine_name": "ENGINE_NAME",
+  "api_endpoint": "API_ENDPOINT"
 }

@@ -1,90 +1,227 @@
-# This is an example for how to work with the fivetran_connector_sdk module.
-"""Add one line description of your connector here.
-For example: This connector demonstrates how to fetch data from XYZ source and upsert it into destination using ABC library.
+# This is a Fivetran connector for Firebolt database.
+"""Firebolt Fivetran Connector.
+This connector demonstrates how to fetch data from Firebolt database and
+upsert it into destination using Firebolt Python SDK.
 """
-# See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-# and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+# See the Technical Reference documentation
+# (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
+# and the Best Practices documentation
+# (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
 
 
+import json
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List, Union
+
+from firebolt.client.auth.client_credentials import ClientCredentials
+from firebolt.client.constants import DEFAULT_API_URL
+from firebolt.db.connection import connect
+
+# For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
+# For enabling Logs in your connector code
 # Import required classes from fivetran_connector_sdk
 # For supporting Connector operations like Update() and Schema()
 from fivetran_connector_sdk import Connector
-
-# For enabling Logs in your connector code
 from fivetran_connector_sdk import Logging as log
-
-# For supporting Data operations like Upsert(), Update(), Delete() and checkpoint()
 from fivetran_connector_sdk import Operations as op
-
-
-""" Add your source-specific imports here
-Example: import pandas, boto3, etc.
-Add comment for each import to explain its purpose for users to follow."""
-import json
-
 
 """
 GUIDELINES TO FOLLOW WHILE WRITING AN EXAMPLE CONNECTOR:
-- Import only the necessary modules and libraries to keep the code clean and efficient.
+- Import only the necessary modules and libraries to keep the code clean and
+  efficient.
 - Use clear, consistent and descriptive names for your functions and variables.
-- For constants and global variables, use uppercase letters with underscores (e.g. CHECKPOINT_INTERVAL, TABLE_NAME).
+- For constants and global variables, use uppercase letters with underscores
+  (e.g. CHECKPOINT_INTERVAL, TABLE_NAME).
 - Add comments to explain the purpose of each function in the docstring.
-- Add comments to explain the purpose of complex logic within functions, where necessary.
-- Add comments to highlight where users can make changes to the code to suit their specific use case.
-- Split your code into smaller functions to improve readability and maintainability where required.
-- Use logging to provide useful information about the connector's execution. Do not log excessively.
-- Implement error handling to catch exceptions and log them appropriately. Catch specific exceptions where possible.
-- Define the complete data model with primary key and data types in the schema function.
-- Ensure that the connector does not load all data into memory at once. This can cause memory overflow errors. Use pagination or streaming where possible.
-- Add comments to explain pagination or streaming logic to help users understand how to handle large datasets.
-- Add comments for upsert, update and delete to explain the purpose of upsert, update and delete. This will help users understand the upsert, update and delete processes.
-- Checkpoint your state at regular intervals to ensure that the connector can resume from the last successful sync in case of interruptions.
-- Add comments for checkpointing to explain the purpose of checkpoint. This will help users understand the checkpointing process.
-- Refer to the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices)
+- Add comments to explain the purpose of complex logic within functions,
+  where necessary.
+- Add comments to highlight where users can make changes to the code to suit
+  their specific use case.
+- Split your code into smaller functions to improve readability and
+  maintainability where required.
+- Use logging to provide useful information about the connector's execution.
+  Do not log excessively.
+- Implement error handling to catch exceptions and log them appropriately.
+  Catch specific exceptions where possible.
+- Define the complete data model with primary key and data types in the
+  schema function.
+- Ensure that the connector does not load all data into memory at once.
+  This can cause memory overflow errors.
+  Use pagination or streaming where possible.
+- Add comments to explain pagination or streaming logic to help users
+  understand how to handle large datasets.
+- Add comments for upsert, update and delete to explain the purpose
+  of these operations. This will help users understand these processes.
+- Checkpoint your state at regular intervals to ensure that the connector
+  can resume from the last successful sync in case of interruptions.
+- Add comments for checkpointing to explain the purpose of checkpoint.
+  This will help users understand the checkpointing process.
+- Refer to the Best Practices documentation
+  (https://fivetran.com/docs/connectors/connector-sdk/best-practices)
 """
 
 
-def validate_configuration(configuration: dict):
+def validate_configuration(configuration: dict) -> None:
     """
-    Validate the configuration dictionary to ensure it contains all required parameters.
-    This function is called at the start of the update method to ensure that the connector has all necessary configuration values.
+    Validate the configuration dictionary to ensure it contains all required
+    parameters. This function is called at the start of the update method to
+    ensure that the connector has all necessary configuration values.
     Args:
-        configuration: a dictionary that holds the configuration settings for the connector.
+        configuration: a dictionary that holds the configuration settings
+                       for the connector.
     Raises:
         ValueError: if any required configuration parameter is missing.
     """
 
-    # Validate required configuration parameters
-    required_configs = ["param1", "param2", "param3"]
+    required_configs = [
+        "client_id",
+        "client_secret",
+        "account_name",
+        "database",
+        "engine_name",
+    ]
+
     for key in required_configs:
         if key not in configuration:
             raise ValueError(f"Missing required configuration value: {key}")
+        if not configuration[key] or configuration[key].strip() == "":
+            raise ValueError(f"Configuration value '{key}' cannot be empty")
 
 
-def schema(configuration: dict):
+def map_firebolt_type_to_fivetran(firebolt_type: str) -> Union[str, Dict[str, Any]]:
     """
-    Define the schema function which lets you configure the schema your connector delivers.
-    See the technical reference documentation for more details on the schema function:
+    Map Firebolt data types to Fivetran data types.
+    Args:
+        firebolt_type: Firebolt column data type
+    Returns:
+        str: Corresponding Fivetran data type
+
+    Fivetran supported data types:
+    BOOLEAN, SHORT, INT, LONG, DECIMAL, FLOAT, DOUBLE, NAIVE_DATE,
+    NAIVE_DATETIME, UTC_DATETIME, BINARY, XML, STRING, JSON
+
+    """
+    type_mapping = {
+        "INT": "INT",
+        "INTEGER": "INT",
+        "INT4": "INT",
+        "BIGINT": "LONG",
+        "LONG": "LONG",
+        "INT8": "LONG",
+        "FLOAT": "FLOAT",
+        "FLOAT8": "FLOAT",
+        "DOUBLE": "DOUBLE",
+        "FLOAT4": "FLOAT",
+        "REAL": "FLOAT",
+        "DOUBLE PRECISION": "DOUBLE",
+        "DECIMAL": "DECIMAL",
+        "NUMERIC": "DECIMAL",
+        # Boolean type
+        "BOOLEAN": "BOOLEAN",
+        "BOOL": "BOOLEAN",
+        # String types
+        "TEXT": "STRING",
+        "STRING": "STRING",
+        # Date and timestamp types
+        "DATE": "NAIVE_DATE",
+        "TIMESTAMP": "NAIVE_DATETIME",
+        "TIMESTAMPTZ": "UTC_DATETIME",
+        # Binary type
+        "BYTEA": "BINARY",
+        # Spatial type
+        "GEOGRAPHY": "STRING",
+    }
+
+    upper_type = firebolt_type.upper()
+
+    # Handle parameterized types like DECIMAL(10,2)
+    if "(" in upper_type:
+        base_type = upper_type.split("(")[0].strip()
+        if base_type == "DECIMAL" or base_type == "NUMERIC":
+            precision, scale = upper_type.split("(")[1].rstrip(")").split(",")
+            return {
+                "type": "DECIMAL",
+                "precision": int(precision),
+                "scale": int(scale),
+            }
+        if base_type in type_mapping:
+            return type_mapping[base_type]
+
+    # Handle array types
+    if upper_type.startswith("ARRAY"):
+        return "JSON"
+
+    # Handle struct types
+    if upper_type.startswith("STRUCT"):
+        return "JSON"
+
+    return type_mapping.get(upper_type, "STRING")
+
+
+def schema(configuration: dict) -> List[Dict[str, Any]]:
+    """
+    Define the schema function which discovers tables from Firebolt database.
+    See the technical reference documentation for more details on the schema
+    function:
     https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
     Args:
-        configuration: a dictionary that holds the configuration settings for the connector.
+        configuration: a dictionary that holds the configuration settings
+                       for the connector.
     """
 
-    return [
-        {
-            "table": "table_name",  # Name of the table in the destination, required.
-            "primary_key": ["id"],  # Primary key column(s) for the table, optional.
-            "columns": {  # Definition of columns and their types, optional.
-                "id": "STRING",  # Contains a dictionary of column names and data types
-            },  # For any columns whose names are not provided here, e.g. id, their data types will be inferred
-        },
-    ]
+    validate_configuration(configuration)
+
+    log.info("Discovering Firebolt schema")
+
+    auth = ClientCredentials(
+        client_id=configuration["client_id"],
+        client_secret=configuration["client_secret"],
+    )
+
+    with connect(
+        auth=auth,
+        account_name=configuration["account_name"],
+        database=configuration["database"],
+        engine_name=configuration["engine_name"],
+        api_endpoint=configuration.get("api_endpoint", f"https://{DEFAULT_API_URL}"),
+    ) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT table_name, column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+        """,
+        )
+
+        results = cursor.fetchall()
+
+        tables = {}
+        for row in results:
+            table_name, column_name, data_type, _ = row
+            if table_name not in tables:
+                tables[table_name] = {
+                    "table": table_name,
+                    "primary_key": [],
+                    "columns": {},
+                }
+
+            fivetran_type = map_firebolt_type_to_fivetran(data_type)
+            tables[table_name]["columns"][column_name] = fivetran_type
+
+        log.info(f"Discovered {len(tables)} tables")
+
+        return list(tables.values())
 
 
-def update(configuration: dict, state: dict):
+def update(configuration: dict, state: dict) -> Any:
     """
-     Define the update function, which is a required function, and is called by Fivetran during each sync.
-    See the technical reference documentation for more details on the update function
+    Define the update function, which is a required function,
+    and is called by Fivetran during each sync.
+    See the technical reference documentation for more details on the update
+    function:
     https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
     Args:
         configuration: A dictionary containing connection details
@@ -92,39 +229,105 @@ def update(configuration: dict, state: dict):
         The state dictionary is empty for the first sync or for any full re-sync
     """
 
-    log.warning("Example: <type_of_example> : <name_of_the_example>")
+    log.info("Starting Firebolt data sync")
 
-    # Validate the configuration to ensure it contains all required values.
     validate_configuration(configuration=configuration)
 
-    # Extract configuration parameters as required
-    param1 = configuration.get("param1")
+    auth = ClientCredentials(
+        client_id=configuration["client_id"],
+        client_secret=configuration["client_secret"],
+    )
 
-    # Get the state variable for the sync, if needed
-    last_sync_time = state.get("last_sync_time")
+    table_cursors = state.get("table_cursors", {})
 
     try:
-        data = get_data()
-        for record in data:
+        with connect(
+            auth=auth,
+            account_name=configuration["account_name"],
+            database=configuration["database"],
+            engine_name=configuration["engine_name"],
+            api_endpoint=configuration.get(
+                "api_endpoint", f"https://{DEFAULT_API_URL}"
+            ),
+        ) as connection:
+            cursor = connection.cursor()
 
-            # The yield statement returns a generator object.
-            # This generator will yield an upsert operation to the Fivetran connector.
-            # The op.upsert method is called with two arguments:
-            # - The first argument is the name of the table to upsert the data into.
-            # - The second argument is a dictionary containing the data to be upserted,
-            yield op.upsert(table="table_name", data=record)
+            cursor.execute(
+                """
+                SELECT DISTINCT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_type = 'BASE TABLE'
+            """,
+            )
 
-        # Update state with the current sync time for the next run
-        new_state = {"last_sync_time": new_sync_time}
+            tables = [row[0] for row in cursor.fetchall()]
+            log.info(f"Syncing {len(tables)} tables: {tables}")
 
-        # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
-        # from the correct position in case of next sync or interruptions.
-        # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
-        yield op.checkpoint(new_state)
+            current_sync_time = datetime.now(timezone.utc).isoformat()
+            new_table_cursors = {}
+
+            for table_name in tables:
+                log.info(f"Syncing table: {table_name}")
+
+                try:
+                    iteration_column = configuration.get("iteration_column")
+                    last_cursor = table_cursors.get(table_name)
+
+                    query = f'SELECT * FROM "{table_name}"'
+                    if last_cursor and iteration_column:
+                        query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
+                        query += f' ORDER BY "{iteration_column}"'
+
+                    log.fine(f"Executing query: {query}")
+                    cursor.execute_stream(query)
+
+                    last_iteration_value = None
+                    total_rows = 0
+
+                    for row in cursor:
+                        columns = [desc.name for desc in cursor.description]
+                        record = dict(zip(columns, row))
+
+                        for key, value in record.items():
+                            if isinstance(value, list):
+                                record[key] = json.dumps(value)
+                            # Fivetran expects date and datetime as strings
+                            elif isinstance(value, date):
+                                record[key] = value.isoformat()
+
+                        if iteration_column and iteration_column in record:
+                            last_iteration_value = record[iteration_column]
+
+                        yield op.upsert(table=table_name, data=record)
+
+                        total_rows += 1
+                        if total_rows % 1000 == 0:
+                            log.info(
+                                f"Processed {total_rows} records " f"from {table_name}"
+                            )
+
+                    if iteration_column and last_iteration_value is not None:
+                        new_table_cursors[table_name] = str(last_iteration_value)
+                    else:
+                        new_table_cursors[table_name] = current_sync_time
+
+                    log.info(f"Completed sync for table: {table_name}")
+
+                except Exception as table_error:
+                    log.severe(f"Failed to sync table {table_name}: {str(table_error)}")
+                    raise
+
+            new_state = {
+                "last_sync_time": current_sync_time,
+                "table_cursors": new_table_cursors,
+            }
+
+            yield op.checkpoint(new_state)
+            log.info("Firebolt sync completed successfully")
 
     except Exception as e:
-        # In case of an exception, raise a runtime error
+        log.severe(f"Failed to sync data from Firebolt: {str(e)}")
         raise RuntimeError(f"Failed to sync data: {str(e)}")
 
 
@@ -132,9 +335,13 @@ def update(configuration: dict, state: dict):
 connector = Connector(update=update, schema=schema)
 
 # Check if the script is being run as the main module.
-# This is Python's standard entry method allowing your script to be run directly from the command line or IDE 'run' button.
-# This is useful for debugging while you write your code. Note this method is not called by Fivetran when executing your connector in production.
-# Please test using the Fivetran debug command prior to finalizing and deploying your connector.
+# This is Python's standard entry method allowing your script to be run directly
+# from the command line or IDE 'run' button.
+# This is useful for debugging while you write your code.
+# Note this method is not called by Fivetran when executing your connector
+# in production.
+# Please test using the Fivetran debug command prior to finalizing and deploying
+# your connector.
 if __name__ == "__main__":
     # Open the configuration.json file and load its contents
     with open("configuration.json", "r") as f:
