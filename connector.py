@@ -7,7 +7,7 @@ This connector demonstrates how to fetch data from Firebolt database and upsert 
 
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from firebolt.client.auth import ClientCredentials
@@ -276,6 +276,9 @@ def update(configuration: dict, state: dict) -> Any:
                             for key, value in record.items():
                                 if isinstance(value, list):
                                     record[key] = json.dumps(value)
+                                # Fivetran expects date and datetime as strings
+                                elif isinstance(value, date):
+                                    record[key] = value.isoformat()
 
                             if iteration_column and iteration_column in record:
                                 last_iteration_value = record[iteration_column]
