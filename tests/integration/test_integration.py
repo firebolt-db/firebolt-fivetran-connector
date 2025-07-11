@@ -5,8 +5,11 @@ from typing import Any, Dict, Generator
 import pytest
 from firebolt.client.auth import ClientCredentials
 from firebolt.db import connect
+from fivetran_connector_sdk import Logging as log
 
 from connector import schema, update, validate_configuration
+
+log.LOG_LEVEL = log.Level.FINE  # type: ignore
 
 
 @pytest.fixture
@@ -16,7 +19,9 @@ def firebolt_config() -> Dict[str, Any]:
     client_secret = os.environ.get("secret")
 
     if not client_id or not client_secret:
-        pytest.skip("Missing credentials in environment variables 'id' and 'secret'")
+        raise ValueError(
+            "Missing credentials in environment variables 'id' and 'secret'"
+        )
 
     return {
         "client_id": client_id,
@@ -137,10 +142,10 @@ class TestFireboltConnectorIntegration:
         assert "columns" in test_table, "Table should have 'columns' key"
 
         expected_columns = {
-            "id": "INTEGER",
+            "id": "INT",
             "name": "STRING",
-            "created_date": "DATE",
-            "updated_at": "TIMESTAMP_NTZ",
+            "created_date": "NAIVE_DATE",
+            "updated_at": "NAIVE_DATETIME",
             "is_active": "BOOLEAN",
             "price": "DECIMAL",
             "tags": "JSON",
@@ -165,7 +170,11 @@ class TestFireboltConnectorIntegration:
         operations = []
         for operation in update_generator:
             operations.append(operation)
-            if len(operations) > 100:
+            if len(operations) > 300:
+                log.warning(
+                    "More than 300 operations received, "
+                    "stopping iteration to avoid infinite loop"
+                )
                 break
 
         upsert_ops = []
@@ -228,7 +237,11 @@ class TestFireboltConnectorIntegration:
         operations = []
         for operation in update_generator:
             operations.append(operation)
-            if len(operations) > 100:
+            if len(operations) > 300:
+                log.warning(
+                    "More than 300 operations received, "
+                    "stopping iteration to avoid infinite loop"
+                )
                 break
 
         upsert_ops = []

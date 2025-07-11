@@ -127,29 +127,6 @@ def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
     return type_mapping.get(upper_type, "STRING")
 
 
-def has_timestamp_column(cursor: Any, table_name: str, database: str) -> bool:
-    """
-    Check if table has a timestamp column for incremental sync.
-    Args:
-        cursor: Database cursor
-        table_name: Name of the table
-        database: Database name
-    Returns:
-        bool: True if table has timestamp columns
-    """
-    cursor.execute(
-        """
-        SELECT COUNT(*) FROM information_schema.columns
-        WHERE table_schema = ? AND table_name = ?
-        AND data_type IN ('TIMESTAMP', 'TIMESTAMPTZ', 'DATE')
-    """,
-        [database, table_name],
-    )
-
-    result = cursor.fetchone()
-    return result[0] > 0 if result else False
-
-
 def schema(configuration: dict) -> List[Dict[str, Any]]:
     """
     Define the schema function which discovers tables from Firebolt database.
@@ -194,7 +171,7 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
             if table_name not in tables:
                 tables[table_name] = {
                     "table": table_name,
-                    "primary_key": ["_fivetran_id"],
+                    "primary_key": [],
                     "columns": {},
                 }
 
@@ -216,9 +193,6 @@ def update(configuration: dict, state: dict) -> Any:
         state: A dictionary containing state information from previous runs
         The state dictionary is empty for the first sync or for any full re-sync
     """
-
-    # Set up logging
-    log.info("Setting up logging for Firebolt connector")
 
     log.info("Starting Firebolt data sync")
 
@@ -270,49 +244,34 @@ def update(configuration: dict, state: dict) -> Any:
                         query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
                         query += f' ORDER BY "{iteration_column}"'
 
-                    log.info(f"Executing query: {query}")
+                    log.fine(f"Executing query: {query}")
                     cursor.execute_stream(query)
 
-                    batch_size = 1000
-                    batch_count = 0
                     last_iteration_value = None
                     total_rows = 0
 
-                    while True:
-                        rows = cursor.fetchmany(batch_size)
-                        if not rows:
-                            break
-
-                        total_rows += len(rows)
-                        log.info(
-                            f"Fetched {len(rows)} rows from {table_name}, "
-                            f"total so far: {total_rows}"
-                        )
-
+                    for row in cursor:
                         columns = [desc.name for desc in cursor.description]
+                        record = dict(zip(columns, row))
 
-                        for row in rows:
-                            record = dict(zip(columns, row))
+                        record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
 
-                            record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
+                        for key, value in record.items():
+                            if isinstance(value, list):
+                                record[key] = json.dumps(value)
+                            # Fivetran expects date and datetime as strings
+                            elif isinstance(value, date):
+                                record[key] = value.isoformat()
 
-                            for key, value in record.items():
-                                if isinstance(value, list):
-                                    record[key] = json.dumps(value)
-                                # Fivetran expects date and datetime as strings
-                                elif isinstance(value, date):
-                                    record[key] = value.isoformat()
+                        if iteration_column and iteration_column in record:
+                            last_iteration_value = record[iteration_column]
 
-                            if iteration_column and iteration_column in record:
-                                last_iteration_value = record[iteration_column]
+                        yield op.upsert(table=table_name, data=record)
 
-                            yield op.upsert(table=table_name, data=record)
-
-                        batch_count += 1
-                        if batch_count % 10 == 0:
+                        total_rows += 1
+                        if total_rows % 1000 == 0:
                             log.info(
-                                f"Processed {batch_count * batch_size} records "
-                                f"from {table_name}"
+                                f"Processed {total_rows} records " f"from {table_name}"
                             )
 
                     if iteration_column and last_iteration_value is not None:
@@ -323,14 +282,8 @@ def update(configuration: dict, state: dict) -> Any:
                     log.info(f"Completed sync for table: {table_name}")
 
                 except Exception as table_error:
-                    if "does not exist or not authorized" in str(table_error):
-                        log.warning(f"Skipping table {table_name}: {str(table_error)}")
-                        continue
-                    else:
-                        log.severe(
-                            f"Failed to sync table {table_name}: {str(table_error)}"
-                        )
-                        raise
+                    log.severe(f"Failed to sync table {table_name}: {str(table_error)}")
+                    raise
 
             new_state = {
                 "last_sync_time": current_sync_time,
