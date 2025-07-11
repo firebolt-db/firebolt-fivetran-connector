@@ -105,22 +105,37 @@ class TestMapFireboltTypeToFivetran:
         """Test mapping of integer types."""
         assert map_firebolt_type_to_fivetran("INT") == "INT"
         assert map_firebolt_type_to_fivetran("INTEGER") == "INT"
+        assert map_firebolt_type_to_fivetran("INT4") == "INT"
         assert map_firebolt_type_to_fivetran("int") == "INT"
         assert map_firebolt_type_to_fivetran("integer") == "INT"
+        assert map_firebolt_type_to_fivetran("int4") == "INT"
 
     def test_long_types(self) -> None:
         """Test mapping of long/bigint types."""
         assert map_firebolt_type_to_fivetran("BIGINT") == "LONG"
         assert map_firebolt_type_to_fivetran("LONG") == "LONG"
+        assert map_firebolt_type_to_fivetran("INT8") == "LONG"
         assert map_firebolt_type_to_fivetran("bigint") == "LONG"
         assert map_firebolt_type_to_fivetran("long") == "LONG"
+        assert map_firebolt_type_to_fivetran("int8") == "LONG"
 
     def test_float_types(self) -> None:
         """Test mapping of float/double types."""
         assert map_firebolt_type_to_fivetran("FLOAT") == "FLOAT"
-        assert map_firebolt_type_to_fivetran("DOUBLE") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("FLOAT4") == "FLOAT"
+        assert map_firebolt_type_to_fivetran("REAL") == "FLOAT"
         assert map_firebolt_type_to_fivetran("float") == "FLOAT"
+        assert map_firebolt_type_to_fivetran("float4") == "FLOAT"
+        assert map_firebolt_type_to_fivetran("real") == "FLOAT"
+
+    def test_double_types(self) -> None:
+        """Test mapping of double precision types."""
+        assert map_firebolt_type_to_fivetran("DOUBLE") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("FLOAT8") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("DOUBLE PRECISION") == "DOUBLE"
         assert map_firebolt_type_to_fivetran("double") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("float8") == "DOUBLE"
+        assert map_firebolt_type_to_fivetran("double precision") == "DOUBLE"
 
     def test_decimal_types(self) -> None:
         """Test mapping of decimal/numeric types."""
@@ -128,36 +143,58 @@ class TestMapFireboltTypeToFivetran:
         assert map_firebolt_type_to_fivetran("NUMERIC") == "DECIMAL"
         assert map_firebolt_type_to_fivetran("decimal") == "DECIMAL"
         assert map_firebolt_type_to_fivetran("numeric") == "DECIMAL"
+        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == "DECIMAL"
+        assert map_firebolt_type_to_fivetran("NUMERIC(38,9)") == "DECIMAL"
 
     def test_string_types(self) -> None:
         """Test mapping of string types."""
         assert map_firebolt_type_to_fivetran("TEXT") == "STRING"
         assert map_firebolt_type_to_fivetran("STRING") == "STRING"
-        assert map_firebolt_type_to_fivetran("VARCHAR") == "STRING"
         assert map_firebolt_type_to_fivetran("text") == "STRING"
         assert map_firebolt_type_to_fivetran("string") == "STRING"
-        assert map_firebolt_type_to_fivetran("varchar") == "STRING"
 
     def test_boolean_type(self) -> None:
         """Test mapping of boolean type."""
         assert map_firebolt_type_to_fivetran("BOOLEAN") == "BOOLEAN"
+        assert map_firebolt_type_to_fivetran("BOOL") == "BOOLEAN"
         assert map_firebolt_type_to_fivetran("boolean") == "BOOLEAN"
+        assert map_firebolt_type_to_fivetran("bool") == "BOOLEAN"
 
     def test_date_types(self) -> None:
         """Test mapping of date/timestamp types."""
         assert map_firebolt_type_to_fivetran("DATE") == "NAIVE_DATE"
         assert map_firebolt_type_to_fivetran("TIMESTAMP") == "NAIVE_DATETIME"
-        assert map_firebolt_type_to_fivetran("TIMESTAMPTZ") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("TIMESTAMPTZ") == "UTC_DATETIME"
         assert map_firebolt_type_to_fivetran("date") == "NAIVE_DATE"
         assert map_firebolt_type_to_fivetran("timestamp") == "NAIVE_DATETIME"
-        assert map_firebolt_type_to_fivetran("timestamptz") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("timestamptz") == "UTC_DATETIME"
+
+    def test_binary_type(self) -> None:
+        """Test mapping of binary type."""
+        assert map_firebolt_type_to_fivetran("BYTEA") == "BINARY"
+        assert map_firebolt_type_to_fivetran("bytea") == "BINARY"
+
+    def test_spatial_type(self) -> None:
+        """Test mapping of spatial type to STRING."""
+        assert map_firebolt_type_to_fivetran("GEOGRAPHY") == "STRING"
+        assert map_firebolt_type_to_fivetran("geography") == "STRING"
 
     def test_array_types(self) -> None:
         """Test mapping of array types."""
         assert map_firebolt_type_to_fivetran("ARRAY(INT)") == "JSON"
         assert map_firebolt_type_to_fivetran("ARRAY(STRING)") == "JSON"
         assert map_firebolt_type_to_fivetran("array(int)") == "JSON"
-        assert map_firebolt_type_to_fivetran("ARRAY_OF_STRINGS") == "JSON"
+
+    def test_struct_type(self) -> None:
+        """Test mapping of struct type to JSON."""
+        assert map_firebolt_type_to_fivetran("STRUCT(a INT, b STRING)") == "JSON"
+        assert map_firebolt_type_to_fivetran("struct(a int, b string)") == "JSON"
+
+    def test_parameterized_types(self) -> None:
+        """Test mapping of parameterized types."""
+        assert map_firebolt_type_to_fivetran("FLOAT(25)") == "FLOAT"
+        assert map_firebolt_type_to_fivetran("FLOAT(53)") == "FLOAT"
+        assert map_firebolt_type_to_fivetran("DECIMAL(10,2)") == "DECIMAL"
 
     def test_unknown_types(self) -> None:
         """Test mapping of unknown types defaults to STRING."""
@@ -171,3 +208,4 @@ class TestMapFireboltTypeToFivetran:
         assert map_firebolt_type_to_fivetran("BiGiNt") == "LONG"
         assert map_firebolt_type_to_fivetran("VarChar") == "STRING"
         assert map_firebolt_type_to_fivetran("TimeStamp") == "NAIVE_DATETIME"
+        assert map_firebolt_type_to_fivetran("TimeStampTZ") == "UTC_DATETIME"

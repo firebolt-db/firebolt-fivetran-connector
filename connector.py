@@ -95,33 +95,57 @@ def map_firebolt_type_to_fivetran(firebolt_type: str) -> str:
         firebolt_type: Firebolt column data type
     Returns:
         str: Corresponding Fivetran data type
+
+    Fivetran supported data types:
+    BOOLEAN, SHORT, INT, LONG, DECIMAL, FLOAT, DOUBLE, NAIVE_DATE,
+    NAIVE_DATETIME, UTC_DATETIME, BINARY, XML, STRING, JSON
+
     """
     type_mapping = {
         "INT": "INT",
         "INTEGER": "INT",
+        "INT4": "INT",
         "BIGINT": "LONG",
         "LONG": "LONG",
+        "INT8": "LONG",
         "FLOAT": "FLOAT",
+        "FLOAT8": "FLOAT",
         "DOUBLE": "DOUBLE",
+        "FLOAT4": "FLOAT",
+        "REAL": "FLOAT",
+        "DOUBLE PRECISION": "DOUBLE",
         "DECIMAL": "DECIMAL",
         "NUMERIC": "DECIMAL",
+        # Boolean type
+        "BOOLEAN": "BOOLEAN",
+        "BOOL": "BOOLEAN",
+        # String types
         "TEXT": "STRING",
         "STRING": "STRING",
-        "BOOLEAN": "BOOLEAN",
+        # Date and timestamp types
         "DATE": "NAIVE_DATE",
-        "BYTEA": "BINARY",
         "TIMESTAMP": "NAIVE_DATETIME",
-        "TIMESTAMPTZ": "NAIVE_DATETIME",
+        "TIMESTAMPTZ": "UTC_DATETIME",
+        # Binary type
+        "BYTEA": "BINARY",
+        # Spatial type
+        "GEOGRAPHY": "STRING",
     }
 
     upper_type = firebolt_type.upper()
 
+    # Handle parameterized types like DECIMAL(10,2) or FLOAT(25)
     if "(" in upper_type:
-        base_type = upper_type.split("(")[0]
+        base_type = upper_type.split("(")[0].strip()
         if base_type in type_mapping:
             return type_mapping[base_type]
 
+    # Handle array types
     if upper_type.startswith("ARRAY"):
+        return "JSON"
+
+    # Handle struct types
+    if upper_type.startswith("STRUCT"):
         return "JSON"
 
     return type_mapping.get(upper_type, "STRING")
@@ -254,7 +278,7 @@ def update(configuration: dict, state: dict) -> Any:
                         columns = [desc.name for desc in cursor.description]
                         record = dict(zip(columns, row))
 
-                        record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
+                        # record["_fivetran_id"] = f"{table_name}_{hash(str(row))}"
 
                         for key, value in record.items():
                             if isinstance(value, list):
