@@ -1,5 +1,3 @@
-from unittest.mock import Mock, patch
-
 import pytest
 
 from connector import map_firebolt_type_to_fivetran, validate_configuration
