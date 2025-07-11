@@ -10,6 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Formatting conventions
-        uses: firebolt-db/action-pr-checks@main
+        uses: jef/conventional-commits-pr-action@v1.2.0
         with:
-          github-key: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
