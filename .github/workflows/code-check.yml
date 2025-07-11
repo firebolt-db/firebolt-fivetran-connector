@@ -30,4 +30,4 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run pre-commit checks
-      run: SKIP=black_nbconvert pre-commit run --all-files
+      run: pre-commit run --all-files
