@@ -25,10 +25,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.8
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: 3.8
+          python-version: 3.12
 
       - name: Install dependencies
         run: |
@@ -46,38 +46,13 @@ jobs:
           api-endpoint: "api.staging.firebolt.io"
           engine-version: ${{ inputs.engine-version }}
 
-      - name: Create test configuration
-        env:
-          SERVICE_ID: ${{ secrets.FIREBOLT_CLIENT_ID_STG_NEW_IDN }}
-          SERVICE_SECRET: ${{ secrets.FIREBOLT_CLIENT_SECRET_STG_NEW_IDN }}
-          DATABASE_NAME: ${{ steps.setup.outputs.database_name }}
-          ENGINE_NAME: ${{ steps.setup.outputs.engine_name }}
-          API_ENDPOINT: "api.staging.firebolt.io"
-          ACCOUNT_NAME: ${{ vars.FIREBOLT_ACCOUNT }}
-        run: |
-          cat > test_configuration.json << EOF
-          {
-            "client_id": "$SERVICE_ID",
-            "client_secret": "$SERVICE_SECRET",
-            "account_name": "$ACCOUNT_NAME",
-            "database": "$DATABASE_NAME",
-            "engine_name": "$ENGINE_NAME",
-            "api_endpoint": "https://$API_ENDPOINT"
-          }
-          EOF
-
       - name: Run integration tests
         env:
-          SERVICE_ID: ${{ secrets.FIREBOLT_CLIENT_ID_STG_NEW_IDN }}
-          SERVICE_SECRET: ${{ secrets.FIREBOLT_CLIENT_SECRET_STG_NEW_IDN }}
-          DATABASE_NAME: ${{ steps.setup.outputs.database_name }}
-          ENGINE_NAME: ${{ steps.setup.outputs.engine_name }}
-          API_ENDPOINT: "api.staging.firebolt.io"
-          ACCOUNT_NAME: ${{ vars.FIREBOLT_ACCOUNT }}
+          id: ${{ secrets.FIREBOLT_CLIENT_ID_STG_NEW_IDN }}
+          secret: ${{ secrets.FIREBOLT_CLIENT_SECRET_STG_NEW_IDN }}
+          database: ${{ steps.setup.outputs.database_name }}
+          engine_name: ${{ steps.setup.outputs.engine_name }}
+          api_endpoint: https://api.staging.firebolt.io
+          account_name: ${{ vars.FIREBOLT_ACCOUNT }}
         run: |
-          pytest test_integration.py -v --tb=short
-
-      - name: Cleanup test configuration
-        if: always()
-        run: |
-          rm -f test_configuration.json
+          pytest tests/integration -v --tb=short
