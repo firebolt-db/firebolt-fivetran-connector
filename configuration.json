@@ -1,8 +1,8 @@
 {
-  "client_id": "placeholder_for_runtime",
-  "client_secret": "placeholder_for_runtime", 
-  "account_name": "automation",
-  "database": "petro_test",
-  "engine_name": "petro_test",
-  "api_endpoint": "https://api.staging.firebolt.io"
+  "client_id": "CLIENT_ID",
+  "client_secret": "CLIENT_SECRET", 
+  "account_name": "ACCOUNT_NAME",
+  "database": "DATABASE",
+  "engine_name": "ENGINE_NAME",
+  "api_endpoint": "API_ENDPOINT"
 }
