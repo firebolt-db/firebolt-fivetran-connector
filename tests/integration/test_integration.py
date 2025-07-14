@@ -440,7 +440,7 @@ class TestFireboltConnectorIntegration:
         ), "DOUBLE value should be correct"
 
         assert isinstance(
-            product_a["real_col"], float
+            product_a["real_col"], str
         ), "REAL should be mapped to a string"
         assert product_a["real_col"] == "1.618", "REAL value should be correct"
 
