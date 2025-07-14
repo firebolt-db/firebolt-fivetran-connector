@@ -116,6 +116,4 @@ For more information about setting up and managing your Fivetran pipeline:
 - [Fivetran Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) - Complete setup instructions for custom connectors
 - [Fivetran Connector SDK Technical Reference](https://fivetran.com/docs/connector-sdk/technical-reference) - Detailed API reference and methods
 - [Fivetran Connector SDK Best Practices](https://fivetran.com/docs/connector-sdk/best-practices) - Performance optimization and development guidelines
-- [Fivetran REST API Documentation](https://fivetran.com/docs/rest-api) - API reference for managing connectors programmatically
-- [Fivetran Connector SDK Examples](https://fivetran.com/docs/connector-sdk/examples) - Additional connector examples and patterns
 - [Fivetran Connector SDK Troubleshooting](https://fivetran.com/docs/connector-sdk/troubleshooting) - Common issues and solutions
