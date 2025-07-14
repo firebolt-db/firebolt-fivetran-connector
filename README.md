@@ -41,6 +41,7 @@ cd firebolt-fivetran-connector
 
 ```bash
 pip install -r requirements.txt
+pip install fivetran_connector_sdk
 ```
 
 ### 3. Set up configuration file
@@ -49,10 +50,11 @@ Create a `configuration.json` file in the project root with your Firebolt connec
 
 ```json
 {
-  "param1": "YOUR_FIREBOLT_USERNAME",
-  "param2": "YOUR_FIREBOLT_PASSWORD", 
-  "param3": "YOUR_FIREBOLT_DATABASE",
-  "param4": "YOUR_FIREBOLT_ENGINE_URL"
+  "client_id": "YOUR_FIREBOLT_CLIENT_ID",
+  "client_secret": "YOUR_FIREBOLT_CLIENT_SECRET", 
+  "database": "YOUR_FIREBOLT_DATABASE",
+  "engine_name": "YOUR_FIREBOLT_ENGINE_NAME",
+  "account_name": "YOUR_FIREBOLT_ACCOUNT_NAME"
 }
 ```
 
@@ -87,10 +89,16 @@ Once deployed, you can set up and schedule your connector through the Fivetran d
 
 The connector requires the following configuration parameters:
 
-- `param1`: Your Firebolt username or service account
-- `param2`: Your Firebolt password or API token
-- `param3`: The name of your Firebolt database
-- `param4`: Your Firebolt engine URL
+- `client_id`: Your Firebolt service account client ID
+- `client_secret`: Your Firebolt service account client secret
+- `database`: The name of your Firebolt database
+- `engine_name`: The name of your Firebolt engine
+- `account_name`: Your Firebolt account name
+
+To obtain these credentials:
+- `client_id` and `client_secret` are from your Firebolt service account. Follow the [Manage service accounts](https://docs.firebolt.io/guides/managing-your-organization/service-accounts) guide to create one.
+- `database` and `engine_name` are the Firebolt database and engine you want to sync data from.
+- `account_name` is your Firebolt account identifier. Learn more in the [Managing accounts](https://docs.firebolt.io/guides/managing-your-organization/managing-accounts) guide.
 
 These parameters are validated by the `validate_configuration()` function in `connector.py` (lines 47-61).
 
@@ -111,9 +119,3 @@ For more information about setting up and managing your Fivetran pipeline:
 - [Fivetran REST API Documentation](https://fivetran.com/docs/rest-api) - API reference for managing connectors programmatically
 - [Fivetran Connector SDK Examples](https://fivetran.com/docs/connector-sdk/examples) - Additional connector examples and patterns
 - [Fivetran Connector SDK Troubleshooting](https://fivetran.com/docs/connector-sdk/troubleshooting) - Common issues and solutions
-
-## Support
-
-For issues with the Fivetran platform, contact [Fivetran Support](https://support.fivetran.com/hc/en-us/requests/new).
-
-For custom connector development assistance, Fivetran's Professional Services team can help. Contact your Account Representative or submit a support request to get started.
