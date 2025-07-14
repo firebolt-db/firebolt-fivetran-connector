@@ -37,8 +37,8 @@ def extract_record_data(record: Record) -> Dict[str, Any]:
 @pytest.fixture
 def firebolt_config() -> Dict[str, Any]:
     """Fixture providing Firebolt configuration from environment variables."""
-    client_id = os.environ.get("id")
-    client_secret = os.environ.get("secret")
+    client_id = os.environ.get("client_id")
+    client_secret = os.environ.get("client_secret")
     account_name = os.environ.get("account_name")
     database = os.environ.get("database")
     engine_name = os.environ.get("engine_name")
@@ -440,7 +440,7 @@ class TestFireboltConnectorIntegration:
         ), "DOUBLE value should be correct"
 
         assert isinstance(
-            product_a["real_col"], float
+            product_a["real_col"], str
         ), "REAL should be mapped to a string"
         assert product_a["real_col"] == "1.618", "REAL value should be correct"
 
