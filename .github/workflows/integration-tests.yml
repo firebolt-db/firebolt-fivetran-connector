@@ -48,8 +48,8 @@ jobs:
 
       - name: Run integration tests
         env:
-          id: ${{ secrets.FIREBOLT_CLIENT_ID_STG_NEW_IDN }}
-          secret: ${{ secrets.FIREBOLT_CLIENT_SECRET_STG_NEW_IDN }}
+          client_id: ${{ secrets.FIREBOLT_CLIENT_ID_STG_NEW_IDN }}
+          client_secret: ${{ secrets.FIREBOLT_CLIENT_SECRET_STG_NEW_IDN }}
           database: ${{ steps.setup.outputs.database_name }}
           engine_name: ${{ steps.setup.outputs.engine_name }}
           api_endpoint: https://api.staging.firebolt.io
