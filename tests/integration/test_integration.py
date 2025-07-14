@@ -51,7 +51,8 @@ def firebolt_config() -> Dict[str, Any]:
 
     if not account_name or not database or not engine_name or not api_endpoint:
         raise ValueError(
-            "Missing configuration in environment variables: account_name, database, engine_name, api_endpoint"
+            "Missing configuration in environment variables: account_name," \
+            "database, engine_name, api_endpoint"
         )
 
     return {
@@ -439,7 +440,7 @@ class TestFireboltConnectorIntegration:
         ), "DOUBLE value should be correct"
 
         assert isinstance(
-            product_a["real_col"], str
+            product_a["real_col"], float
         ), "REAL should be mapped to a string"
         assert product_a["real_col"] == "1.618", "REAL value should be correct"
 
