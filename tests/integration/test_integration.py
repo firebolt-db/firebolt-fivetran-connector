@@ -51,7 +51,7 @@ def firebolt_config() -> Dict[str, Any]:
 
     if not account_name or not database or not engine_name or not api_endpoint:
         raise ValueError(
-            "Missing configuration in environment variables: account_name," \
+            "Missing configuration in environment variables: account_name,"
             "database, engine_name, api_endpoint"
         )
 
