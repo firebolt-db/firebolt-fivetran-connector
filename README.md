@@ -1,92 +1,119 @@
-# Connector SDK Individual Example README.md Structure Template
+# Firebolt Fivetran Connector
 
-*Instructions: Every example added to the repository should have a comprehensive README.md to make it easy for users landing directly on the README to understand what the example does, how to configure it for their own use, and how to find more information about working with Connector SDK.*
+A custom Fivetran connector for syncing data from Firebolt databases to your destination data warehouse using the Fivetran Connector SDK.
 
-*To use the template, replace the italicized text with your own description. Non-italicized text is common to all READMEs and can be left as is.*
+## Prerequisites
 
-*If a particular section is not relevant to your example (e.g. Error Handling \- your example doesn’t have any special error handling, Additional Files \- your example doesn’t have any additional files), delete that heading from the README.*
+Before using this connector, you need:
 
-*Notate what section relates to what function in the connector.py using the function name or specific line block. (e.g. Error Handling \- Refer to def handle_critical_error(error_message, error_details=None),  Pagination \- Refer to lines 150-175)*
+### Fivetran Account
+- An active Fivetran account with access to the Fivetran REST API
+- A Fivetran account on Free, Standard, Enterprise, or Business Critical plan
 
-*Do not use Title Case for any heading level other than H1 (a single top-level heading with a single `#`).*
+### API Key Generation
+You'll need to generate a Fivetran API key to deploy and manage your connector:
 
-## Connector overview
+1. Log into your Fivetran dashboard
+2. Click your user name in the top right corner
+3. Click **API Key**
+4. Click **Generate API key**
+5. Save both the API key and secret securely - you'll need them for deployment
 
-*Provide a detailed overview of the connector, including its functionality, the data source it connects to, and the use cases it addresses.*
+For detailed instructions, see the [Fivetran Scoped API Key documentation](https://fivetran.com/docs/rest-api/getting-started#scopedapikey).
 
-## Requirements
-
-* [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)   
-* Operating system:
-  * Windows: 10 or later (64-bit only)
-  * macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
-  * Linux: Distributions such as Ubuntu 20.04 or later, Debian 10 or later, or Amazon Linux 2 or later (arm64 or x86_64)
+### Development Environment
+- Python 3.9, 3.10, 3.11, or 3.12
+- Operating system:
+  - Windows: 10 or later (64-bit only)
+  - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
+  - Linux: Distributions such as Ubuntu 20.04 or later, Debian 10 or later, or Amazon Linux 2 or later (arm64 or x86_64)
 
 ## Getting started
 
-Refer to the [Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+### 1. Clone the repository
 
-## Features
-
-* *List key features of the connector, such as supported endpoints, data replication methods, and any special capabilities.*
-
-## Configuration file
-
-*Detail the configuration keys defined for your connector, which are uploaded to Fivetran from the configuration.json file.* 
-
+```bash
+git clone https://github.com/firebolt-db/firebolt-fivetran-connector.git
+cd firebolt-fivetran-connector
 ```
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Set up configuration file
+
+Create a `configuration.json` file in the project root with your Firebolt connection details:
+
+```json
 {
-  "api_key": "YOUR_API_KEY",
-  "base_url": "https://api.example.com",
-  "start_date": "2023-01-01"
+  "param1": "YOUR_FIREBOLT_USERNAME",
+  "param2": "YOUR_FIREBOLT_PASSWORD", 
+  "param3": "YOUR_FIREBOLT_DATABASE",
+  "param4": "YOUR_FIREBOLT_ENGINE_URL"
 }
 ```
 
-Note: Ensure that the `configuration.json` file is not checked into version control to protect sensitive information.
+**Important:** Never commit the `configuration.json` file to version control as it contains sensitive credentials. The file is already included in `.gitignore`.
 
-## Requirements file
+### 4. Test locally (optional)
 
-*Explain the role of the `requirements.txt` file in specifying the Python libraries required by the connector.*
+Before deploying, you can test the connector locally:
 
-*Example content of `requirements.txt`:*
-
-```
-pandas
+```bash
+python connector.py
 ```
 
-Note: The `fivetran_connector_sdk:latest` and `requests:latest` packages are pre-installed in the Fivetran environment. To avoid dependency conflicts, do not declare them in your `requirements.txt`.
+This will run the connector in debug mode using your configuration file.
 
-## Authentication
+### 5. Deploy to Fivetran
 
-*Explain the authentication mechanism used to access the source (e.g., API Key, OAuth2) and provide steps to obtain necessary credentials.*
+Deploy your connector to Fivetran using the Fivetran CLI:
 
-## Pagination
+```bash
+fivetran deploy
+```
 
-*Describe how the connector handles pagination when retrieving data from the source.*
+Follow the prompts to:
+- Authenticate with your Fivetran API key and secret
+- Configure your connector settings
+- Deploy the connector to your Fivetran account
 
-## Data handling
+Once deployed, you can set up and schedule your connector through the Fivetran dashboard.
 
-*Outline how data is processed, transformed, and delivered to Fivetran, including information on schema mapping and data types.*
+## Configuration parameters
 
-## Error handling
+The connector requires the following configuration parameters:
 
-*Explain the error-handling strategies implemented in the connector.*
+- `param1`: Your Firebolt username or service account
+- `param2`: Your Firebolt password or API token
+- `param3`: The name of your Firebolt database
+- `param4`: Your Firebolt engine URL
 
-## Tables created
+These parameters are validated by the `validate_configuration()` function in `connector.py` (lines 47-61).
 
-*Summary of Tables replicated.*
+## Features
 
-*Screenshot of the schema objects generated*
+- **Incremental sync**: Supports incremental data updates using state management
+- **Schema definition**: Automatically defines table schemas for your destination
+- **Error handling**: Robust error handling with detailed logging
+- **Checkpointing**: Regular state checkpointing to ensure reliable sync resumption
 
-## Additional files
+## Further reading
 
-*Some connectors include additional files to modularize functionality. Provide a description of each additional file and its purpose.*
+For more information about setting up and managing your Fivetran pipeline:
 
-* **mock\_api.py** – *A simulated API for testing data retrieval.*  
-* **users\_sync.py** – *Handles user data synchronization logic.*  
-* **api\_threading\_utils.py** – *Manages API request threading for performance optimization.*  
-* **constants.py** – *Stores constant values used throughout the connector.*
+- [Fivetran Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) - Complete setup instructions for custom connectors
+- [Fivetran Connector SDK Technical Reference](https://fivetran.com/docs/connector-sdk/technical-reference) - Detailed API reference and methods
+- [Fivetran Connector SDK Best Practices](https://fivetran.com/docs/connector-sdk/best-practices) - Performance optimization and development guidelines
+- [Fivetran REST API Documentation](https://fivetran.com/docs/rest-api) - API reference for managing connectors programmatically
+- [Fivetran Connector SDK Examples](https://fivetran.com/docs/connector-sdk/examples) - Additional connector examples and patterns
+- [Fivetran Connector SDK Troubleshooting](https://fivetran.com/docs/connector-sdk/troubleshooting) - Common issues and solutions
 
-## Additional considerations
+## Support
 
-The examples provided are intended to help you effectively use Fivetran's Connector SDK. While we've tested the code, Fivetran cannot be held responsible for any unexpected or negative consequences that may arise from using these examples. For inquiries, please reach out to our Support team.
+For issues with the Fivetran platform, contact [Fivetran Support](https://support.fivetran.com/hc/en-us/requests/new).
+
+For custom connector development assistance, Fivetran's Professional Services team can help. Contact your Account Representative or submit a support request to get started.
