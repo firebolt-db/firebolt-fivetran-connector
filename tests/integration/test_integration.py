@@ -1,37 +1,52 @@
 import os
 import time
-from typing import Any, Dict, Generator
+from decimal import Decimal
+from typing import Any, Dict, Generator, List
 
 import pytest
 from firebolt.client.auth import ClientCredentials
 from firebolt.db import connect
 from fivetran_connector_sdk import Logging as log
-from fivetran_connector_sdk.protos.connector_sdk_pb2 import Record
+from fivetran_connector_sdk import Operations
 
 from connector import schema, update, validate_configuration
 
 log.LOG_LEVEL = log.Level.FINE  # type: ignore
 
 
-def extract_record_data(record: Record) -> Dict[str, Any]:
-    """Helper function to extract data from a record."""
-    data = {}
-    for key in record.data:
-        field_value = record.data[key]
-        print(f"Processing value : {field_value}")
-        if field_value.HasField("string"):
-            data[key] = field_value.string
-        elif field_value.HasField("long"):
-            data[key] = field_value.long
-        elif field_value.HasField("double"):
-            data[key] = field_value.double
-        elif field_value.HasField("binary"):
-            data[key] = field_value.binary
-        elif field_value.HasField("float"):
-            data[key] = field_value.float
-        elif field_value.HasField("boolean"):
-            data[key] = field_value.boolean
-    return data
+class CapturedOperations:
+    """Records the operations the connector emits through the Fivetran SDK."""
+
+    def __init__(self) -> None:
+        self.upserts: List[Dict[str, Any]] = []
+        self.checkpoints: List[Dict[str, Any]] = []
+
+    def records_for(self, table: str) -> List[Dict[str, Any]]:
+        """Return the data of all upserts emitted for the given table."""
+        return [op["data"] for op in self.upserts if op["table"] == table]
+
+
+@pytest.fixture
+def captured_operations(monkeypatch: pytest.MonkeyPatch) -> CapturedOperations:
+    """
+    Capture upserts and checkpoints instead of sending them to the SDK.
+
+    Since fivetran-connector-sdk 2.x, operations are pushed onto an internal
+    queue drained by the SDK runtime, and checkpoint() blocks until that queue
+    is consumed. Calling update() directly would hang, so the operations are
+    intercepted here and the emitted data is asserted on instead.
+    """
+    captured = CapturedOperations()
+
+    def fake_upsert(table: str, data: Dict[str, Any], **_: Any) -> None:
+        captured.upserts.append({"table": table, "data": data})
+
+    def fake_checkpoint(state: Dict[str, Any]) -> None:
+        captured.checkpoints.append(state)
+
+    monkeypatch.setattr(Operations, "upsert", staticmethod(fake_upsert))
+    monkeypatch.setattr(Operations, "checkpoint", staticmethod(fake_checkpoint))
+    return captured
 
 
 @pytest.fixture
@@ -228,42 +243,19 @@ class TestFireboltConnectorIntegration:
             ), f"Column {col_name} should be {expected_type}"
 
     def test_update_function_with_test_data(
-        self, firebolt_config: Dict[str, Any], test_table_setup: str
+        self,
+        firebolt_config: Dict[str, Any],
+        test_table_setup: str,
+        captured_operations: CapturedOperations,
     ) -> None:
         """Test update function emits correct operations for test table data."""
-        state: Dict[str, Any] = {}
+        update(firebolt_config, {})
 
-        update_generator = update(firebolt_config, state)
-
-        operations = []
-        for operation in update_generator:
-            operations.append(operation)
-            if len(operations) > 300:
-                log.warning(
-                    "More than 300 operations received, "
-                    "stopping iteration to avoid infinite loop"
-                )
-                break
-
-        upsert_ops = []
-        for op in operations:
-            if isinstance(op, list):
-                if len(op) > 0:
-                    update_response = op[0]
-                    if hasattr(update_response, "record") and update_response.HasField(
-                        "record"
-                    ):
-                        record = update_response.record
-                        if record.table_name == test_table_setup:
-                            upsert_ops.append(record)
+        test_records = captured_operations.records_for(test_table_setup)
 
         assert (
-            len(upsert_ops) == 3
-        ), f"Should have 3 upsert operations for test table, got {len(upsert_ops)}"
-
-        test_records = [extract_record_data(record) for record in upsert_ops]
-
-        assert len(test_records) == 3, "Should have 3 test records"
+            len(test_records) == 3
+        ), f"Should have 3 upsert operations for test table, got {len(test_records)}"
 
         names = [record["name"] for record in test_records]
         assert "Product A" in names, "Should contain Product A"
@@ -291,8 +283,18 @@ class TestFireboltConnectorIntegration:
                 expected_columns
             ), f"Record keys should match expected columns, got {record.keys()}"
 
+        assert (
+            len(captured_operations.checkpoints) == 1
+        ), "Should checkpoint once at the end of the sync"
+        assert (
+            test_table_setup in captured_operations.checkpoints[0]["table_cursors"]
+        ), "Checkpoint should contain a cursor for the test table"
+
     def test_incremental_sync_with_iteration_column(
-        self, firebolt_config: Dict[str, Any], test_table_setup: str
+        self,
+        firebolt_config: Dict[str, Any],
+        test_table_setup: str,
+        captured_operations: CapturedOperations,
     ) -> None:
         """Test incremental sync using iteration column emits filtered operations."""
         config_with_iteration = firebolt_config.copy()
@@ -303,35 +305,13 @@ class TestFireboltConnectorIntegration:
             "table_cursors": {test_table_setup: "2023-01-01 10:30:00"},
         }
 
-        update_generator = update(config_with_iteration, state)
+        update(config_with_iteration, state)
 
-        operations = []
-        for operation in update_generator:
-            operations.append(operation)
-            if len(operations) > 300:
-                log.warning(
-                    "More than 300 operations received, "
-                    "stopping iteration to avoid infinite loop"
-                )
-                break
-
-        upsert_ops = []
-        for op in operations:
-            if isinstance(op, list):
-                if len(op) > 0:
-                    update_response = op[0]
-                    if hasattr(update_response, "record") and update_response.HasField(
-                        "record"
-                    ):
-                        record = update_response.record
-                        if record.table_name == test_table_setup:
-                            upsert_ops.append(record)
+        test_records = captured_operations.records_for(test_table_setup)
 
         assert (
-            len(upsert_ops) == 2
-        ), f"Should have 2 upsert operations after cursor, got {len(upsert_ops)}"
-
-        test_records = [extract_record_data(record) for record in upsert_ops]
+            len(test_records) == 2
+        ), f"Should have 2 upsert operations after cursor, got {len(test_records)}"
 
         names = [record["name"] for record in test_records]
 
@@ -344,6 +324,13 @@ class TestFireboltConnectorIntegration:
         for record in test_records:
             updated_at = record.get("updated_at")
             assert updated_at is not None, "Record should have updated_at field"
+
+        new_cursor = captured_operations.checkpoints[-1]["table_cursors"][
+            test_table_setup
+        ]
+        assert new_cursor.startswith(
+            "2023-01-03"
+        ), f"Cursor should advance to the last synced row, got {new_cursor}"
 
     def test_configuration_with_custom_iteration_column(
         self, firebolt_config: Dict[str, Any]
@@ -360,42 +347,22 @@ class TestFireboltConnectorIntegration:
         ), "Schema should work with iteration column config"
 
     def test_data_type_mapping(
-        self, firebolt_config: Dict[str, Any], test_table_setup: str
+        self,
+        firebolt_config: Dict[str, Any],
+        test_table_setup: str,
+        captured_operations: CapturedOperations,
     ) -> None:
         """
         Test that all data types are correctly mapped and data is
         correctly returned.
         """
-        state: Dict[str, Any] = {}
+        update(firebolt_config, {})
 
-        update_generator = update(firebolt_config, state)
-
-        operations = []
-        for operation in update_generator:
-            operations.append(operation)
-            if len(operations) > 300:
-                log.warning(
-                    "More than 300 operations received, "
-                    "stopping iteration to avoid infinite loop"
-                )
-                break
-
-        upsert_ops = []
-        for op in operations:
-            if isinstance(op, list) and len(op) > 0:
-                update_response = op[0]
-                if hasattr(update_response, "record") and update_response.HasField(
-                    "record"
-                ):
-                    record = update_response.record
-                    if record.table_name == test_table_setup:
-                        upsert_ops.append(record)
+        test_records = captured_operations.records_for(test_table_setup)
 
         assert (
-            len(upsert_ops) == 3
-        ), f"Should have 3 upsert operations for test table, got {len(upsert_ops)}"
-
-        test_records = [extract_record_data(record) for record in upsert_ops]
+            len(test_records) == 3
+        ), f"Should have 3 upsert operations for test table, got {len(test_records)}"
 
         # Find record for Product A
         product_a = None
@@ -421,9 +388,11 @@ class TestFireboltConnectorIntegration:
         assert product_a["name"] == "Product A", "STRING value should be correct"
 
         assert isinstance(
-            product_a["numeric_col"], str
-        ), "NUMERIC should be mapped to a string"
-        assert product_a["numeric_col"] == "99.99", "NUMERIC value should be correct"
+            product_a["numeric_col"], Decimal
+        ), "NUMERIC should be mapped to a Decimal"
+        assert product_a["numeric_col"] == Decimal(
+            "99.99"
+        ), "NUMERIC value should be correct"
 
         assert isinstance(
             product_a["float_col"], float
@@ -440,9 +409,11 @@ class TestFireboltConnectorIntegration:
         ), "DOUBLE value should be correct"
 
         assert isinstance(
-            product_a["real_col"], str
-        ), "REAL should be mapped to a string"
-        assert product_a["real_col"] == "1.618", "REAL value should be correct"
+            product_a["real_col"], float
+        ), "REAL should be mapped to a float"
+        assert (
+            abs(product_a["real_col"] - 1.618) < 0.0001
+        ), "REAL value should be correct"
 
         assert isinstance(
             product_a["created_date"], str
@@ -464,11 +435,13 @@ class TestFireboltConnectorIntegration:
         ), "TIMESTAMPTZ value should be correct"
 
         assert isinstance(
-            product_a["is_active"], int
-        ), "BOOLEAN should be mapped to an integer"
-        assert product_a["is_active"] == 1, "BOOLEAN value should be correct"
+            product_a["is_active"], bool
+        ), "BOOLEAN should be mapped to a bool"
+        assert product_a["is_active"] is True, "BOOLEAN value should be correct"
 
-        assert "binary_data" in product_a, "BYTEA should be present"
+        assert isinstance(
+            product_a["binary_data"], bytes
+        ), "BYTEA should be mapped to bytes"
 
         assert isinstance(
             product_a["tags"], str

@@ -40,9 +40,10 @@ cd firebolt-fivetran-connector
 ### 2. Install dependencies
 
 ```bash
-pip install -r requirements.txt
-pip install fivetran_connector_sdk
+pip install -r requirements-dev.txt
 ```
+
+This installs the connector's dependencies plus the pinned version of the Fivetran Connector SDK the connector is tested against.
 
 ### 3. Set up configuration file
 
