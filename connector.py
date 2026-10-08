@@ -216,7 +216,7 @@ def schema(configuration: dict) -> List[Dict[str, Any]]:
         return list(tables.values())
 
 
-def update(configuration: dict, state: dict) -> Any:
+def update(configuration: dict, state: dict) -> None:
     """
     Define the update function, which is a required function,
     and is called by Fivetran during each sync.
@@ -279,7 +279,7 @@ def update(configuration: dict, state: dict) -> Any:
                         query += f" WHERE \"{iteration_column}\" > '{last_cursor}'"
                         query += f' ORDER BY "{iteration_column}"'
 
-                    log.fine(f"Executing query: {query}")
+                    log.debug(f"Executing query: {query}")
                     cursor.execute_stream(query)
 
                     last_iteration_value = None
@@ -299,7 +299,7 @@ def update(configuration: dict, state: dict) -> Any:
                         if iteration_column and iteration_column in record:
                             last_iteration_value = record[iteration_column]
 
-                        yield op.upsert(table=table_name, data=record)
+                        op.upsert(table=table_name, data=record)
 
                         total_rows += 1
                         if total_rows % 1000 == 0:
@@ -323,7 +323,7 @@ def update(configuration: dict, state: dict) -> Any:
                 "table_cursors": new_table_cursors,
             }
 
-            yield op.checkpoint(new_state)
+            op.checkpoint(new_state)
             log.info("Firebolt sync completed successfully")
 
     except Exception as e:

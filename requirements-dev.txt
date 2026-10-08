@@ -1,0 +1,6 @@
+# Local development and CI dependencies.
+# The Fivetran Connector SDK is provided by the Fivetran runtime and must not be
+# listed in requirements.txt. It is pinned here so tests run against a known
+# SDK version; bump it deliberately after checking the SDK changelog.
+-r requirements.txt
+fivetran_connector_sdk==2.12.1
