@@ -16,6 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Formatting conventions
-        uses: jef/conventional-commits-pr-action@v1.2.0
+        uses: jef/conventional-commits-pr-action@v1.3.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
